@@ -1,50 +1,25 @@
 from flask import Flask, render_template, redirect, url_for, request
-from datetime import datetime, timedelta
 import pymysql
 import pymysql.cursors
 
 conn= pymysql.connect(host='localhost', user='root', password='Rainbow.86', db='Project')
 app = Flask(__name__)
 
-counterMatIndent = 4
-sequencecounterMatIndent = 0
-Ndays = 10
-orderidcounter = 5
-sequencecounterPurchaseOrder = 0
-receiptID = 5
 
 @app.route('/AdminHome')
 def AdminHome():
     return render_template('adminhome.html')
 
-@app.route('/AdminChangeInfo', methods = ['GET', 'POST'])
-def AdminChangeInfo():
-    a = conn.cursor()
-    error = None
-    if request.method == 'POST':
-        Name = request.form['Username']
-        Password = request.form['Pass']
-        FName = request.form['FName']
-        LName = request.form['LName']
-        Email = request.form['Email']
-        Address = request.form['Address']
-        ContactDetail = request.form['ContactDetail']
-        Gender = request.form['Gender']
-        userupdateargs = [FName, LName, Email, Address, ContactDetail, Gender, Name, Password]
-        a.callproc('UserUpdate', userupdateargs)
-        conn.commit()
-        return redirect(url_for('AdminHome'))
-    return render_template('adminchangeinfo.html')
-
-@app.route('/AdminUpdatePass', methods = ['GET', 'POST'])
+@app.route('/AdminUpdate', methods = ['GET', 'POST'])
+#This function is currently under construction for SQL issues
 def AdminUpdate():
     a = conn.cursor()
     error = None
     if request.method =='POST':
         Name = request.form['Username']
         Password = request.form['Pass']
-        updatepassargs = [Password, Name]
-        a.callproc('UserUpdatePassword', updatepassargs)
+        passupsql = 'UPDATE UserTable SET Pass = %s WHERE Username = %s)'
+        a.execute(passupsql, (Password, Name))
         conn.commit()
         return redirect(url_for('AdminHome'))
     return render_template('adminupdate.html', error = error)
@@ -63,8 +38,8 @@ def AdminAdd():
         Address = request.form['Address']
         ContactDetail = request.form['ContactDetail']
         Gender = request.form['Gender']
-        adduserargs = [Name, Password, Role, FName, LName, Email, Address, ContactDetail, Gender]
-        a.callproc('AddUser', adduserargs)
+        addsql = 'INSERT INTO UserTable VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)'
+        a.execute(addsql, (Name, Password, Role, FName, LName, Email, Address, ContactDetail, Gender))
         conn.commit()
         return redirect(url_for('AdminHome'))
     return render_template('adminadd.html', error = error)
@@ -75,13 +50,6 @@ def ManagerHome():
     return render_template('managerhome.html')
 
 ####################################################
-#counterMatIndent = 4
-#sequencecounterMatIndent = 0
-#Ndays = 10
-#orderidcounter = 5
-#sequencecounterPurchaseOrder = 0
-#receiptID = 5
-
 @app.route('/ShopHome')
 def ShopHome():
     return render_template('shophome.html')
@@ -89,136 +57,115 @@ def ShopHome():
 
 @app.route('/search', methods =['GET', 'POST'])
 def ShopSearch():
-    global counterMatIndent
-    global sequencecounterMatIndent
-    global Ndays
-    Date_N_Days_From_Now = datetime.now() + timedelta(days=Ndays)
     a = conn.cursor()
     error = None
     if request.method == 'POST':
-        item = request.form['searchitem']
-        vendorname = request.form['searchvendor']
-        quantity = request.form['quantity']
-        altitembool = request.form['altitem']
-        #print(item)
-        #print(vendorname)
-        searchargs = [item, vendorname]
-        a.callproc('ShopSearch', searchargs)
+        item = request.form['search']
+        sql = 'SELECT * FROM ItemTable WHERE ItemName = %s'
+        a.execute(sql, (item))
         results = a.fetchone()
-        #print(results)
         N1 = results[0]
-        matindargs = [counterMatIndent, sequencecounterMatIndent, N1, Date_N_Days_From_Now.date(), quantity, altitembool]
-        print(matindargs)
-        a.callproc('MatIndentInsert', matindargs)
+        N2 = results[1]
+        N3 = results[2]
+        sql2 = 'INSERT INTO MatIndentTable VALUES (%s, %s, %s)'
+        a.execute(sql2, (str(N1), str(N2), N3))
         conn.commit()
-        #print(results)
+        print(results)
+        #return(str(results))
         return redirect(url_for('PurchaseOrderCreate'))
     return render_template('fancysearch.html', error = error)
 
-@app.route('/PurchaseOrderCreate', methods =['GET', 'POST'])
+@app.route('/orderconfirm')
 def PurchaseOrderCreate():
     a = conn.cursor()
-    error = None
-    if request.method == 'POST':
-        global counterMatIndent
-        global sequencecounterMatIndent
-        global orderidcounter
-        global sequencecounterPurchaseOrder
-        VendorNameSql = request.form['VendorName']
-        print(VendorNameSql)
-        purchaseorderargs = [orderidcounter, sequencecounterPurchaseOrder, counterMatIndent, sequencecounterMatIndent, VendorNameSql]
-        a.callproc('PurchaseOrderCreate', purchaseorderargs)
-        conn.commit()
-        sequencecounterMatIndent = sequencecounterMatIndent + 1
-        sequencecounterPurchaseOrder = sequencecounterPurchaseOrder + 1
-        return redirect(url_for('OrderMoreItems'))
-    return render_template('purchaseordervendorfill.html', error = error)
-
-@app.route('/OrderMoreItems')
-def OrderMoreItems():
-    print(sequencecounterMatIndent)
-    return render_template('shophomeaftersearch.html')
-
-@app.route('/CreateNewIndent', methods = ['GET', 'POST'])
-def CreateNewIndent():
-    global counterMatIndent
-    counterMatIndent = counterMatIndent + 1
-    global sequencecounterMatIndent
-    sequencecounterMatIndent = 0
-    global Ndays
-    Date_N_Days_From_Now = datetime.now() + timedelta(days=Ndays)
-    a = conn.cursor()
-    error = None
-    if request.method == 'POST':
-        item = request.form['searchitem']
-        vendorname = request.form['searchvendor']
-        quantity = request.form['quantity']
-        altitembool = request.form['altitem']
-        print(item)
-        print(vendorname)
-        newsearchargs = [item, vendorname]
-        a.callproc('ShopSearch', newsearchargs)
-        results = a.fetchone()
-        print(results)
-        N1 = results[0]
-        morematindargs = [counterMatIndent, sequencecounterMatIndent, N1, Date_N_Days_From_Now.date(), quantity, altitembool]
-        a.callproc('MatIndentInsert', morematindargs)
-        conn.commit()
-        # print(results)
-        return redirect(url_for('OrderMoreItems'))
-    return render_template('fancysearch.html', error=error)
-
-
-@app.route('/AddANewPurchaseOrder')
-def AddANewPurchaseOrder():
-    global orderidcounter
-    global sequencecounterPurchaseOrder
-    global receiptID
-    dateoforder = datetime.now()
-    print(dateoforder)
-    a = conn.cursor()
-    Pend = 'Pending'
-    Addr = 'Address'
-    Paym = 'Payment'
-    Price = 0.00
-    purchorderargs = [receiptID, orderidcounter, dateoforder.date(), Pend, Addr, Paym, Price]
-    a.callproc('GoodsReceiptGen', purchorderargs)
+    sql = 'INSERT INTO PurchaseOrder SELECT * FROM MatIndentTable'
+    a.execute(sql)
     conn.commit()
-    receiptID = receiptID + 1
-    orderidcounter = orderidcounter + 1
-    sequencecounterPurchaseOrder = 0
-    return render_template('shopcreateanotherpurchaseorder.html')
+    return redirect(url_for('CreateGoodsReceipt'))
 
-@app.route('/CreateGoodsReceipt')
+@app.route('/goodsreceiptinfo')
 def CreateGoodsReceipt():
-    global receiptID
     a = conn.cursor()
-    goodsrecargs = [receiptID]
-    a.callproc('GoodsReceiptCreate', goodsrecargs)
+    #create purchase order table?
+    #create table with counter for intervals to allow placement of data from sql, increase incrementally
+    sql = 'SELECT * FROM PurchaseOrder'
+    #save this data and print it?
+    a.execute(sql)
     results = a.fetchall()
     print(results)
-    return(redirect(url_for('ShopHome')))
+    sqldelete = 'DELETE PurchaseOrder'
+    a.execute(sqldelete)
+    conn.commit()
+    return redirect(url_for('ManagerHome'))
 ######################################
-
 @app.route('/VendorHome')
 def VendorHome():
     return render_template('vendorhome.html')
 
-@app.route('/VendorAdd', methods = ['GET', 'POST'])
+@app.route('/VendorWelcome', methods = ['GET', 'POST'])
+def VendorWelcome():
+    a = conn.cursor()
+    error = None
+    if request.method =='POST':
+        vname = request.form['VendorName']
+        print(vname)
+        minquant = request.form['MinOrderQuant']
+        quality = request.form['Quality']
+        email = request.form['Email']
+        phoneno = request.form['PhoneNo']
+        addsql = 'INSERT INTO VendorTable VALUES (%s, %s, %s)'
+        a.execute(addsql, (vname, minquant, quality, email, phoneno))
+        conn.commit()
+        return redirect(url_for('VendorHome'))
+    return render_template('vendoradd.html', error = error)
+
+@app.route('/deletevendor', methods = ['GET', 'POST'])
+def DeleteVendor():
+    a = conn.cursor()
+    if request.method == 'POST':
+        vendname = request.form['VendorName']
+        sqldeletev = 'DELETE * FROM VendorTable WHERE VendorName = %s'
+        a.execute(sqldeletev, (vendname))
+        conn.commit
+
+    else:
+        error = 'Invalid form type.'
+
+    return redirect(url_for('ManagerHome'))
+
+@app.route('/vendorAdd', methods = ['GET', 'POST'])
 def VendorAdd():
     a = conn.cursor()
     error = None
     if request.method =='POST':
         vname = request.form['VendorName']
         minquant = request.form['MinOrderQuant']
-        quality = request.form['Quality']
+        quality = request.form['UserRole']
+        email = request.form['FName']
+        phoneno = request.form['LName']
+        addsql = "INSERT INTO UserTable VALUES (%s, %s, %s, %s, %s)"
+        a.execute(addsql, (vname, minquant, quality, email, phoneno))
+        conn.commit()
+        return redirect(url_for('ManagerHome'))
+    return render_template('vendoradd.html', error = error)
+
+
+@app.route('/vendorchangeinfo', methods = ['GET', 'POST'])
+#This function is currently under construction for SQL issues
+def VendorChangeInfo():
+    a = conn.cursor()
+    error = None
+    if request.method =='POST':
         email = request.form['Email']
         phoneno = request.form['PhoneNo']
-        args = [vname, minquant, quality, email, phoneno]
-        a.callproc('VendorAdd', args)
+        minorderquant = request.form['MinOrderQuant']
+        quality = request.form['Quality']
+        changesql = 'UPDATE VendorTable SET PhoneNo = %s, MinOrderQuant = %s, Quality = %s WHERE Email = %s)'
+        a.execute(changesql, (email, phoneno, minorderquant, quality))
         conn.commit()
-        return redirect(url_for('VendorHome'))
-    return render_template('vendoradd.html', error = error)
+        return redirect(url_for('ManagerHome'))
+    return render_template('vendorchangeinfo.html', error = error)
+
 
 #######################################
 @app.route('/')
@@ -232,8 +179,8 @@ def login():
         usern = request.form['username']
         passw = request.form['password']
         a = conn.cursor()
-        loginargs = [usern, passw]
-        a.callproc('LoginCheck', loginargs)
+        sql = 'SELECT * FROM UserTable WHERE Username = %s AND Pass = %s'
+        a.execute(sql, (usern, passw))
         data = a.fetchone()
         if data[2] == "Admin":
             return redirect(url_for('AdminHome'))
